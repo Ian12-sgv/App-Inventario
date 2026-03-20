@@ -1,0 +1,58 @@
+name: By_Rossi
+description: "A new Flutter project."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  flutter_localizations:
+    sdk: flutter
+
+  # --- Librerías del proyecto ---
+  provider: ^6.1.2
+  dio: ^5.7.0
+  flutter_secure_storage: ^9.2.2
+  path: ^1.9.0
+  intl: ^0.20.2
+  cupertino_icons: ^1.0.8
+  image_picker: ^1.1.2
+  path_provider: ^2.1.4
+  
+  # ✅ Añadido para leer el logo en formato SVG
+  flutter_svg: ^2.0.10+1
+  pdf: ^3.11.3
+  printing: ^5.14.2
+  share_plus: ^11.1.0
+  socket_io_client: ^2.0.3+1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+  # ✅ Para generar el ícono (logo) de la app en Android/iOS
+  flutter_launcher_icons: ^0.13.1
+  rename: ^3.1.0
+
+flutter:
+  uses-material-design: true
+
+  # ✅ Los assets se cargan desde esta carpeta
+  assets:
+    - assets/branding/
+    - assets/fonts/
+
+# ✅ Config del ícono de instalación (El que se ve en el menú del celular)
+flutter_launcher_icons:
+  android: true
+  ios: true
+  # IMPORTANTE: Para el ícono de instalación usa el PNG que ya tienes
+  image_path: "assets/branding/logo_app.svg"
+  min_sdk_android: 21
+  adaptive_icon_background: "#eee"
+  adaptive_icon_foreground: "assets/branding/logo_app.svg"
