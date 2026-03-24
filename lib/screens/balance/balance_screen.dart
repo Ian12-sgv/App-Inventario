@@ -406,6 +406,7 @@ class _BalanceScreenState extends State<BalanceScreen> {
               dividerColor: Colors.white.withValues(alpha: 0.18),
               calendarBorderColor: Colors.white.withValues(alpha: 0.28),
               calendarIconColor: Colors.white,
+              isRefreshing: model.balanceRefreshing,
               futureDays: 0,
             ),
           ),

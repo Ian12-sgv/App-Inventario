@@ -14,6 +14,7 @@ class BalanceDateStrip extends StatefulWidget {
     required this.dividerColor,
     required this.calendarBorderColor,
     required this.calendarIconColor,
+    this.isRefreshing = false,
     this.pastDays = 180,
     this.futureDays = 0,
   });
@@ -28,6 +29,7 @@ class BalanceDateStrip extends StatefulWidget {
   final Color dividerColor;
   final Color calendarBorderColor;
   final Color calendarIconColor;
+  final bool isRefreshing;
   final int pastDays;
   final int futureDays;
 
@@ -39,9 +41,12 @@ class _BalanceDateStripState extends State<BalanceDateStrip> {
   static const double _chipWidth = 92;
   static const double _chipHeight = 40;
   static const double _gap = 8;
+  static const double _outerHorizontalPadding = 20;
+  static const double _calendarSectionWidth = 63;
 
-  late final ScrollController _scrollController;
+  late ScrollController _scrollController;
   late DateTime _start;
+  double? _lastViewportEstimate;
 
   DateTime _floor(DateTime d) => DateTime(d.year, d.month, d.day);
 
@@ -63,11 +68,14 @@ class _BalanceDateStripState extends State<BalanceDateStrip> {
   @override
   void initState() {
     super.initState();
-    _scrollController = ScrollController();
     _resetWindow();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollToSelected(animate: false);
-    });
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ensureInitialController();
   }
 
   @override
@@ -107,6 +115,53 @@ class _BalanceDateStripState extends State<BalanceDateStrip> {
     _start = selected.isBefore(baseStart) ? selected : baseStart;
   }
 
+  double _estimatedViewportWidth() {
+    final width =
+        MediaQuery.sizeOf(context).width -
+        _outerHorizontalPadding -
+        _calendarSectionWidth;
+    return width < _chipWidth ? _chipWidth : width;
+  }
+
+  double _targetOffsetForViewport(double viewport) {
+    final index = _selectedClamped
+        .difference(_start)
+        .inDays
+        .clamp(0, _totalDays - 1);
+    final estimatedContentWidth =
+        (_totalDays * _chipWidth) + ((_totalDays - 1) * _gap);
+    final estimatedMaxScroll = estimatedContentWidth > viewport
+        ? estimatedContentWidth - viewport
+        : 0.0;
+
+    return (index * (_chipWidth + _gap) - ((viewport - _chipWidth) / 2)).clamp(
+      0.0,
+      estimatedMaxScroll,
+    );
+  }
+
+  void _ensureInitialController() {
+    final viewport = _estimatedViewportWidth();
+    if (_lastViewportEstimate == viewport) return;
+
+    final oldController = _scrollController;
+    _lastViewportEstimate = viewport;
+    _scrollController = ScrollController(
+      initialScrollOffset: _targetOffsetForViewport(viewport),
+    );
+
+    if (oldController.hasClients) {
+      oldController.dispose();
+    } else {
+      oldController.dispose();
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scrollToSelected(animate: false);
+    });
+  }
+
   void _scrollToSelected({bool animate = true}) {
     if (!_scrollController.hasClients) return;
 
@@ -132,10 +187,6 @@ class _BalanceDateStripState extends State<BalanceDateStrip> {
   @override
   Widget build(BuildContext context) {
     final selected = _selectedClamped;
-    final days = List.generate(
-      _totalDays,
-      (index) => _start.add(Duration(days: index)),
-    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -144,49 +195,53 @@ class _BalanceDateStripState extends State<BalanceDateStrip> {
           Expanded(
             child: SizedBox(
               height: _chipHeight,
-              child: ListView.separated(
+              child: ListView.builder(
                 controller: _scrollController,
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
-                itemCount: days.length,
-                separatorBuilder: (context, index) =>
-                    const SizedBox(width: _gap),
+                itemCount: _totalDays,
+                itemExtent: _chipWidth + _gap,
                 itemBuilder: (context, index) {
-                  final day = days[index];
+                  final day = _start.add(Duration(days: index));
                   final isSelected =
                       day.year == selected.year &&
                       day.month == selected.month &&
                       day.day == selected.day;
 
-                  return InkWell(
-                    onTap: () => widget.onPick(day),
-                    borderRadius: BorderRadius.circular(12),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 140),
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
                       width: _chipWidth,
-                      height: _chipHeight,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? widget.selectedBackgroundColor
-                            : Colors.transparent,
+                      child: InkWell(
+                        onTap: () => widget.onPick(day),
                         borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          widget.format.format(day),
-                          maxLines: 1,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 15,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 140),
+                          height: _chipHeight,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
                             color: isSelected
-                                ? widget.selectedTextColor
-                                : widget.unselectedTextColor,
+                                ? widget.selectedBackgroundColor
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              widget.format.format(day),
+                              maxLines: 1,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15,
+                                color: isSelected
+                                    ? widget.selectedTextColor
+                                    : widget.unselectedTextColor,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -212,10 +267,40 @@ class _BalanceDateStripState extends State<BalanceDateStrip> {
                 ),
                 foregroundColor: widget.calendarIconColor,
               ),
-              child: Icon(
-                Icons.calendar_month_outlined,
-                size: 20,
-                color: widget.calendarIconColor,
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  Icon(
+                    Icons.calendar_month_outlined,
+                    size: 20,
+                    color: widget.calendarIconColor,
+                  ),
+                  if (widget.isRefreshing)
+                    Positioned(
+                      top: -1,
+                      right: -1,
+                      child: Container(
+                        width: 14,
+                        height: 14,
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: widget.calendarBorderColor,
+                            width: 0.8,
+                          ),
+                        ),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            widget.calendarIconColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),

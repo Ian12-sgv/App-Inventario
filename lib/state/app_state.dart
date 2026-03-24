@@ -189,6 +189,8 @@ class AppState extends ChangeNotifier {
   DateTime _selectedDay = DateTime.now();
   List<Txn> _txnsForDay = [];
   BalanceView? _balanceView;
+  bool _balanceRefreshing = false;
+  int _balanceRefreshRequestId = 0;
 
   List<PaymentMethod> _paymentMethods = [];
   List<String> _expenseCategories = [];
@@ -253,6 +255,7 @@ class AppState extends ChangeNotifier {
 
   DateTime get selectedDay => _selectedDay;
   List<Txn> get txnsForDay => _txnsForDay;
+  bool get balanceRefreshing => _balanceRefreshing;
 
   /// Utilidad para pantallas de detalle (ventas por inventario).
   Future<List<Map<String, dynamic>>> getInventoryDocLines(String docId) {
@@ -1599,8 +1602,16 @@ class AppState extends ChangeNotifier {
     final todayNow = DateTime.now();
     final today = DateTime(todayNow.year, todayNow.month, todayNow.day);
     final wanted = DateTime(d.year, d.month, d.day);
-    _selectedDay = wanted.isAfter(today) ? today : wanted;
-    await refreshBalance();
+    final nextSelected = wanted.isAfter(today) ? today : wanted;
+    final sameDay =
+        _selectedDay.year == nextSelected.year &&
+        _selectedDay.month == nextSelected.month &&
+        _selectedDay.day == nextSelected.day;
+
+    if (sameDay) return;
+
+    _selectedDay = nextSelected;
+    await refreshBalance(showBusy: false);
   }
 
   Future<void> refreshBalance({
@@ -1608,14 +1619,23 @@ class AppState extends ChangeNotifier {
     bool notify = true,
   }) async {
     if (!isLoggedIn) return;
+    final requestDay = DateTime(
+      _selectedDay.year,
+      _selectedDay.month,
+      _selectedDay.day,
+    );
+    final requestId = ++_balanceRefreshRequestId;
+
     if (showBusy) {
       _setBusy(true);
+    } else {
+      _setBalanceRefreshing(true, notify: notify);
     }
     try {
       final startLocal = DateTime(
-        _selectedDay.year,
-        _selectedDay.month,
-        _selectedDay.day,
+        requestDay.year,
+        requestDay.month,
+        requestDay.day,
         0,
         0,
         0,
@@ -1623,9 +1643,9 @@ class AppState extends ChangeNotifier {
         0,
       );
       final endLocal = DateTime(
-        _selectedDay.year,
-        _selectedDay.month,
-        _selectedDay.day,
+        requestDay.year,
+        requestDay.month,
+        requestDay.day,
         23,
         59,
         59,
@@ -1638,10 +1658,10 @@ class AppState extends ChangeNotifier {
       // Protección extra: si por zona horaria o backend regresan items fuera del día,
       // filtramos por fecha local seleccionada para mostrar SOLO lo correspondiente.
       final parsed = txns.map(Txn.fromApi).toList();
-      final y = _selectedDay.year;
-      final m = _selectedDay.month;
-      final d = _selectedDay.day;
-      _txnsForDay =
+      final y = requestDay.year;
+      final m = requestDay.month;
+      final d = requestDay.day;
+      final txnsForDay =
           parsed
               .where(
                 (t) => t.when.year == y && t.when.month == m && t.when.day == d,
@@ -1650,6 +1670,11 @@ class AppState extends ChangeNotifier {
             ..sort((a, b) => b.when.compareTo(a.when));
 
       final view = await _balanceApi.ver(from: from, to: to);
+
+      // Si el usuario ya pidió otro día, descartamos esta respuesta vieja.
+      if (requestId != _balanceRefreshRequestId) return;
+
+      _txnsForDay = txnsForDay;
       _balanceView = BalanceView.fromApi(view);
 
       if (notify) {
@@ -1658,6 +1683,8 @@ class AppState extends ChangeNotifier {
     } finally {
       if (showBusy) {
         _setBusy(false);
+      } else if (requestId == _balanceRefreshRequestId) {
+        _setBalanceRefreshing(false, notify: notify);
       }
     }
   }
@@ -2038,6 +2065,14 @@ class AppState extends ChangeNotifier {
       _error = null;
     }
     notifyListeners();
+  }
+
+  void _setBalanceRefreshing(bool v, {bool notify = true}) {
+    if (_balanceRefreshing == v) return;
+    _balanceRefreshing = v;
+    if (notify) {
+      notifyListeners();
+    }
   }
 
   void setError(String? msg) {

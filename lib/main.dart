@@ -61,7 +61,7 @@ class _Root extends StatelessWidget {
 
     if (!ready) {
       return const Scaffold(
-        body: LoadingScreen(message: 'Iniciando aplicacion...'),
+        body: LoadingScreen(message: 'Preparando tu espacio...'),
       );
     }
 
@@ -74,7 +74,9 @@ class _Root extends StatelessWidget {
     return Stack(
       children: [
         AbsorbPointer(child: child),
-        const BlockingLoadingOverlay(message: 'Cargando informacion...'),
+        const BlockingLoadingOverlay(
+          message: 'Sincronizando tu informacion...',
+        ),
       ],
     );
   }

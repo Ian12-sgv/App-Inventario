@@ -106,6 +106,7 @@ class _BalanceDetailScreenState extends State<BalanceDetailScreen> {
               dividerColor: Colors.black.withValues(alpha: 0.12),
               calendarBorderColor: Colors.black.withValues(alpha: 0.18),
               calendarIconColor: AppTheme.navy,
+              isRefreshing: model.balanceRefreshing,
               futureDays: 0,
             ),
           ),
